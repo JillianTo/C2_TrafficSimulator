@@ -24,6 +24,29 @@ import random
 import itertools
 import copy
 
+import argparse
+
+# Parse input arguments
+parser = argparse.ArgumentParser()
+parser.add_argument('--batch_size', type=int, default=128, help='The number of transistions sampled from the replay buffer')
+parser.add_argument('--gamma', type=float, default=0.99, help='The discount factor')
+parser.add_argument('--eps_start', type=float, default=0.9, help='The starting value of epsilon')
+parser.add_argument('--eps_end', type=float, default=0.05, help='The final value of epsilon')
+parser.add_argument('--eps_decay', type=int, default=1000, help='The rate of exponential decay of epsilon, higher means a slower decay')
+parser.add_argument('--tau', type=float, default=0.005, help='The update rate of the target network')
+parser.add_argument('--lr', type=float, default=1e-4, help='The learning rate of the optimizer')
+parser.add_argument('--out_path', type=str, default='./out/', help='The path to save model and optimizer states to')
+parser.add_argument('--device', type=str, default=None, help='Force training to run on this device')
+opt = parser.parse_args()
+print(opt)
+
+# If device was not specified, use GPU if available, else use CPU
+if opt.device == None:
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# If device was specified, use that 
+else:
+    device = opt.device
+
 class TrafficSim(gym.Env):
     def __init__(self):
         """
@@ -176,8 +199,6 @@ class TrafficSim(gym.Env):
 
 env = TrafficSim()
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
 
@@ -215,7 +236,7 @@ class DQN(nn.Module):
 def select_action(state):
     global steps_done
     sample = random.random()
-    eps_threshold = EPS_END + (EPS_START - EPS_END) * math.exp(-1. * steps_done / EPS_DECAY)
+    eps_threshold = opt.eps_end + (opt.eps_start - opt.eps_end) * math.exp(-1. * steps_done / opt.eps_decay)
     steps_done += 1
     if sample > eps_threshold:
         with torch.no_grad():
@@ -225,9 +246,9 @@ def select_action(state):
         return torch.tensor([[env.action_space.sample()]], device=device, dtype=torch.long)
 
 def optimize_model():
-    if len(memory) < BATCH_SIZE:
+    if len(memory) < opt.batch_size:
         return
-    transitions = memory.sample(BATCH_SIZE)
+    transitions = memory.sample(opt.batch_size)
     # Transpose the batch (see https://stackoverflow.com/a/19343/3343043 for detailed explanation). This converts batch-array of Transitions to Transition of batch-arrays.
     batch = Transition(*zip(*transitions))
 
@@ -246,11 +267,11 @@ def optimize_model():
     # Compute V(s_{t+1}) for all next states.
     # Expected values of actions for non_final_next_states are computed based on the "older" target_net; selecting their best reward with max(1)[0].
     # This is merged based on the mask, such that we'll have either the expected state value or 0 in case the state was final.
-    next_state_values = torch.zeros(BATCH_SIZE, device=device)
+    next_state_values = torch.zeros(opt.batch_size, device=device)
     with torch.no_grad():
         next_state_values[non_final_mask] = target_net(non_final_next_states).max(1)[0]
     # Compute the expected Q values
-    expected_state_action_values = (next_state_values * GAMMA) + reward_batch
+    expected_state_action_values = (next_state_values * opt.gamma) + reward_batch
 
     # Compute Huber loss
     criterion = nn.SmoothL1Loss()
@@ -263,25 +284,6 @@ def optimize_model():
     torch.nn.utils.clip_grad_value_(policy_net.parameters(), 100)
     optimizer.step()
 
-# (hyper)parameters
-# TODO: add arg parser
-# the number of transitions sampled from the replay buffer
-BATCH_SIZE = 128
-# the discount factor as mentioned in the previous section
-GAMMA = 0.99
-# the starting value of epsilon
-EPS_START = 0.9
-# the final value of epsilon
-EPS_END = 0.05
-# the rate of exponential decay of epsilon, higher means a slower decay
-EPS_DECAY = 1000
-# the update rate of the target network
-TAU = 0.005
-# the learning rate of the ``AdamW`` optimizer
-LR = 1e-4
-# Path to save model and optimizer states to
-OUT_PATH='./out/'
-
 # Get number of actions from gym action space
 n_actions = env.action_space.n
 # Get the number of state observations
@@ -292,16 +294,16 @@ policy_net = DQN(n_observations, n_actions).to(device)
 target_net = DQN(n_observations, n_actions).to(device)
 target_net.load_state_dict(policy_net.state_dict())
 
-optimizer = optim.AdamW(policy_net.parameters(), lr=LR, amsgrad=True)
+optimizer = optim.AdamW(policy_net.parameters(), lr=opt.lr, amsgrad=True)
 
 # If model state was previously saved, load it and the saved optimizer state
-if os.path.exists(OUT_PATH+'policy_net.pth'):
-    policy_net.load_state_dict(OUT_PATH+'policy_net.pth')
-    target_net.load_state_dict(OUT_PATH+'target_net.pth')
-    optimizer.load_state_dict(OUT_PATH+'optimizer.pth')
+if os.path.exists(opt.out_path+'policy_net.pth'):
+    policy_net.load_state_dict(opt.out_path+'policy_net.pth')
+    target_net.load_state_dict(opt.out_path+'target_net.pth')
+    optimizer.load_state_dict(opt.out_path+'optimizer.pth')
 # If output path doesn't exist, create it
-elif not os.path.isdir(OUT_PATH):
-    os.makedirs(OUT_PATH)
+elif not os.path.isdir(opt.out_path):
+    os.makedirs(opt.out_path)
 
 memory = ReplayMemory(10000)
 
@@ -314,7 +316,7 @@ best_average_delay = 9999999999999999999999999
 best_W = None
 best_i_episode = -1
 for i_episode in range(num_episodes):
-    # Initialize the environment and get it's state
+    # Initialize the environment and get its state
     state, info = env.reset()
     state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
     log_states.append([])
@@ -345,7 +347,7 @@ for i_episode in range(num_episodes):
         target_net_state_dict = target_net.state_dict()
         policy_net_state_dict = policy_net.state_dict()
         for key in policy_net_state_dict:
-            target_net_state_dict[key] = policy_net_state_dict[key]*TAU + target_net_state_dict[key]*(1-TAU)
+            target_net_state_dict[key] = policy_net_state_dict[key]*opt.tau + target_net_state_dict[key]*(1-opt.tau)
         target_net.load_state_dict(target_net_state_dict)
 
         if done:
@@ -357,11 +359,11 @@ for i_episode in range(num_episodes):
                 best_W = copy.deepcopy(env.W)
                 best_i_episode = i_episode
                 # Save current policy net state, one with epoch number in name and one without
-                torch.save(policy_net.state_dict(), OUT_PATH+f'policy_net_{i_episode:02d}.pth')
-                torch.save(policy_net.state_dict(), OUT_PATH+f'policy_net.pth')
+                torch.save(policy_net.state_dict(), opt.out_path+f'policy_net_{i_episode:02d}.pth')
+                torch.save(policy_net.state_dict(), opt.out_path+f'policy_net.pth')
                 # Save current target net state, one with epoch number in name and one without
-                torch.save(target_net.state_dict(), OUT_PATH+f'target_net_{i_episode:02d}.pth')
-                torch.save(target_net.state_dict(), OUT_PATH+f'target_net.pth')
+                torch.save(target_net.state_dict(), opt.out_path+f'target_net_{i_episode:02d}.pth')
+                torch.save(target_net.state_dict(), opt.out_path+f'target_net.pth')
                 # Save current optimizer state
-                torch.save(optimizer.state_dict(), OUT_PATH+'optimizer.pth')
+                torch.save(optimizer.state_dict(), opt.out_path+'optimizer.pth')
             break
