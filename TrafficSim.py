@@ -241,7 +241,7 @@ class TrafficSim(gym.Env):
         # random demand definition
         dt = 30
         demand = 0.22
-        for n1, n2 in itertools.permutations([W1, W2, E1, E2, N1, N2, S1, S2], 2):
+        for n1, n2 in itertools.permutations([W1, W2, W3, E1, E2, E3, N1, N2, N3, S1, S2, S3], 2):
             for t in range(0, 3600, dt):
                 W.adddemand(n1, n2, t, t+dt, random.uniform(0, demand))
         
@@ -256,7 +256,7 @@ class TrafficSim(gym.Env):
         self.I7 = I7
         self.I8 = I8
         self.I9 = I9
-        self.INLINKS = list(self.I1.inlinks.values()) + list(self.I2.inlinks.values()) + list(self.I3.inlinks.values()) + list(self.I4.inlinks.values() + list(self.I5.inlinks.values() + list(self.I6.inlinks.values() + list(self.I7.inlinks.values() + list(self.I8.inlinks.values() + list(self.I9.inlinks.values())
+        self.INLINKS = list(self.I1.inlinks.values()) + list(self.I2.inlinks.values()) + list(self.I3.inlinks.values()) + list(self.I4.inlinks.values()) + list(self.I5.inlinks.values()) + list(self.I6.inlinks.values()) + list(self.I7.inlinks.values()) + list(self.I8.inlinks.values()) + list(self.I9.inlinks.values())
         
         #initial observation
         observation = np.array([0 for i in range(self.n_state)])
@@ -289,7 +289,7 @@ class TrafficSim(gym.Env):
         
         #change signal by action
         #decode action
-        binstr = f"{action_index:04b}"
+        binstr = f"{action_index:09b}"
         i1, i2, i3, i4, i5, i6, i7, i8, i9 = int(binstr[8]), int(binstr[7]), int(binstr[6]), int(binstr[5]), int(binstr[4]), int(binstr[3]), int(binstr[2]), int(binstr[1]), int(binstr[0])
         self.I1.signal_phase = i1
         self.I1.signal_t = 0

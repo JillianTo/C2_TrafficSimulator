@@ -22,7 +22,11 @@ import random
 import copy
 
 import argparse
+import sys
 from TrafficSim import TrafficSim
+
+# Increase recursion limit 
+sys.setrecursionlimit(10000)
 
 # Parse input arguments
 parser = argparse.ArgumentParser()
