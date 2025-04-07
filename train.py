@@ -39,6 +39,8 @@ parser.add_argument('--tau', type=float, default=0.005, help='The update rate of
 parser.add_argument('--lr', type=float, default=1e-4, help='The learning rate of the optimizer')
 parser.add_argument('--out_path', type=str, default='./out/', help='The path to save model and optimizer states to')
 parser.add_argument('--device', type=str, default=None, help='Force training to run on this device')
+parser.add_argument('--num_episodes', type=int, default=200, help='Number of episodes to train for')
+parser.add_argument('--mem_size', type=int, default=10000, help='Replay memory capacity')
 opt = parser.parse_args()
 print(opt)
 
@@ -157,17 +159,16 @@ if os.path.exists(opt.out_path+'policy_net.pth'):
 elif not os.path.isdir(opt.out_path):
     os.makedirs(opt.out_path)
 
-memory = ReplayMemory(10000)
+memory = ReplayMemory(opt.mem_size)
 
 steps_done = 0
-num_episodes = 200
 
 log_states = []
 log_epi_average_delay = []
 best_average_delay = 9999999999999999999999999
 best_W = None
 best_i_episode = -1
-for i_episode in range(num_episodes):
+for i_episode in range(opt.num_episodes):
     # Initialize the environment and get its state
     state, info = env.reset()
     state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
@@ -206,7 +207,7 @@ for i_episode in range(num_episodes):
             log_epi_average_delay.append(env.W.analyzer.average_delay)
             print(f"{i_episode}:[{env.W.analyzer.average_delay : .3f}]", end=" ")
             if env.W.analyzer.average_delay < best_average_delay:
-                print("current best episode!")
+                print(f"Current best episode with average delay: {env.W.analyzer.average_delay}")
                 best_average_delay = env.W.analyzer.average_delay
                 best_W = copy.deepcopy(env.W)
                 best_i_episode = i_episode
