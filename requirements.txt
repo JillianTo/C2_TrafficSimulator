@@ -4,3 +4,4 @@ gymnasium
 matplotlib
 scipy
 torch
+numpy
