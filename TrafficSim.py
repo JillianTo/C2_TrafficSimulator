@@ -5,6 +5,7 @@ import torch
 from uxsim import *
 import random
 import itertools
+import numpy as np
 
 class TrafficSim_FourIntersection(gym.Env):
     def __init__(self):
