@@ -176,7 +176,7 @@ for i in tqdm(range(len(df_demand))):
             except:
                 print("inconsistent demand:", origin, destination, demand)
 
-W.save_scenario(r"C:\Users\micha\OneDrive\Desktop\C2\Philadelphia_sketch.uxsim_scenario")
+W.save_scenario(r"./TransportationNetworks/Philadelphia/Philadelphia_sketch.uxsim_scenario")
 
 W.exec_simulation()
 W.analyzer.print_simple_stats()
