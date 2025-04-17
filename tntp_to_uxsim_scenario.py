@@ -82,9 +82,9 @@ def import_odmatrix_phila(matfile, nodefile):
     df = df.reindex(columns=["origin"]+nodelist)
     return df
 
-df_nodes = import_nodes(r"C:\Users\micha\OneDrive\Desktop\C2\Philadelphia_node.tntp")
-df_links = import_links(r"C:\Users\micha\OneDrive\Desktop\C2\Philadelphia_net.tntp")
-df_demand = import_odmatrix_phila(r"C:\Users\micha\OneDrive\Desktop\C2\Philadelphia_trips.tntp", r"C:\Users\micha\OneDrive\Desktop\C2\Philadelphia_node.tntp")
+df_nodes = import_nodes(r"./TransportationNetworks/Philadelphia/Philadelphia_node.tntp")
+df_links = import_links(r"./TransportationNetworks/Philadelphia/Philadelphia_net.tntp")
+df_demand = import_odmatrix_phila(r"./TransportationNetworks/Philadelphia/Philadelphia_trips.tntp", r"./TransportationNetworks/Philadelphia/Philadelphia_node.tntp")
 
 print(df_nodes.columns)
 
