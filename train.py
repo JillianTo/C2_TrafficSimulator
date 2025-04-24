@@ -41,6 +41,7 @@ parser.add_argument('--out_path', type=str, default='./out/', help='The path to 
 parser.add_argument('--device', type=str, default=None, help='Force training to run on this device')
 parser.add_argument('--num_episodes', type=int, default=200, help='Number of episodes to train for')
 parser.add_argument('--mem_size', type=int, default=10000, help='Replay memory capacity')
+parser.add_argument('--visualize', action='store_true', help='Show visualizations during training')
 opt = parser.parse_args()
 print(opt)
 
@@ -154,10 +155,12 @@ optimizer = optim.AdamW(policy_net.parameters(), lr=opt.lr, amsgrad=True)
 if os.path.exists(opt.out_path+'policy_net.pth'):
     policy_net.load_state_dict(torch.load(opt.out_path+'policy_net.pth'))
     target_net.load_state_dict(torch.load(opt.out_path+'target_net.pth'))
-    optimizer.load_state_dict(torch.load(opt.out_path+'optimizer.pth'))
+    #optimizer.load_state_dict(torch.load(opt.out_path+'optimizer.pth'))
+    print(f"Loaded checkpoints from \'{opt.out_path}\'")
 # If output path doesn't exist, create it
 elif not os.path.isdir(opt.out_path):
     os.makedirs(opt.out_path)
+    print(f"Created folder at \'{opt.out_path}\'")
 
 memory = ReplayMemory(opt.mem_size)
 
@@ -220,3 +223,17 @@ for i_episode in range(opt.num_episodes):
                 # Save current optimizer state
                 torch.save(optimizer.state_dict(), opt.out_path+'optimizer.pth')
             break
+
+    if opt.visualize and (i_episode%50 == 0 or i_episode == opt.num_episodes-1):
+        env.W.analyzer.print_simple_stats(force_print=True)
+        env.W.analyzer.macroscopic_fundamental_diagram()
+        env.W.analyzer.time_space_diagram_traj_links([["W1I1", "I1I2", "I2I3", "I3E1"], ["N1I1", "I1I4", "I4I7", "I7S1"]], figsize=(12,3))
+        for t in list(range(0,env.W.TMAX,int(env.W.TMAX/4))):
+            env.W.analyzer.network(t, detailed=1, network_font_size=0, figsize=(3,3))
+        
+        plt.figure(figsize=(4,3))
+        plt.plot(log_epi_average_delay, "r.")
+        plt.xlabel("episode")
+        plt.ylabel("average delay (s)")
+        plt.grid()
+        plt.show()
