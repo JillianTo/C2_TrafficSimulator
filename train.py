@@ -23,6 +23,7 @@ import copy
 
 import argparse
 import sys
+from subprocess import call
 from TrafficSim import TrafficSim
 
 # Increase recursion limit 
@@ -37,11 +38,11 @@ parser.add_argument('--eps_end', type=float, default=0.05, help='The final value
 parser.add_argument('--eps_decay', type=int, default=1000, help='The rate of exponential decay of epsilon, higher means a slower decay')
 parser.add_argument('--tau', type=float, default=0.005, help='The update rate of the target network')
 parser.add_argument('--lr', type=float, default=1e-4, help='The learning rate of the optimizer')
-parser.add_argument('--out_path', type=str, default='./out/', help='The path to save model and optimizer states to')
+parser.add_argument('--out_path', type=str, default='./outputs/', help='The path to save model and optimizer states to, DO NOT CHOOSE \'./out\'')
 parser.add_argument('--device', type=str, default=None, help='Force training to run on this device')
 parser.add_argument('--num_episodes', type=int, default=200, help='Number of episodes to train for')
 parser.add_argument('--mem_size', type=int, default=10000, help='Replay memory capacity')
-parser.add_argument('--visualize', action='store_true', help='Show visualizations during training')
+parser.add_argument('--save_fig', action='store_true', help='Save visualizations to files instead of showing them')
 opt = parser.parse_args()
 print(opt)
 
@@ -155,7 +156,7 @@ optimizer = optim.AdamW(policy_net.parameters(), lr=opt.lr, amsgrad=True)
 if os.path.exists(opt.out_path+'policy_net.pth'):
     policy_net.load_state_dict(torch.load(opt.out_path+'policy_net.pth'))
     target_net.load_state_dict(torch.load(opt.out_path+'target_net.pth'))
-    #optimizer.load_state_dict(torch.load(opt.out_path+'optimizer.pth'))
+    optimizer.load_state_dict(torch.load(opt.out_path+'optimizer.pth'))
     print(f"Loaded checkpoints from \'{opt.out_path}\'")
 # If output path doesn't exist, create it
 elif not os.path.isdir(opt.out_path):
@@ -171,6 +172,7 @@ log_epi_average_delay = []
 best_average_delay = 9999999999999999999999999
 best_W = None
 best_i_episode = -1
+
 for i_episode in range(opt.num_episodes):
     # Initialize the environment and get its state
     state, info = env.reset()
@@ -224,16 +226,35 @@ for i_episode in range(opt.num_episodes):
                 torch.save(optimizer.state_dict(), opt.out_path+'optimizer.pth')
             break
 
-    if opt.visualize and (i_episode%50 == 0 or i_episode == opt.num_episodes-1):
+    if i_episode%50 == 0 or i_episode == opt.num_episodes-1:
+        if opt.save_fig:
+            env.W.save_mode=1
         env.W.analyzer.print_simple_stats(force_print=True)
         env.W.analyzer.macroscopic_fundamental_diagram()
         env.W.analyzer.time_space_diagram_traj_links([["W1I1", "I1I2", "I2I3", "I3E1"], ["N1I1", "I1I4", "I4I7", "I7S1"]], figsize=(12,3))
         for t in list(range(0,env.W.TMAX,int(env.W.TMAX/4))):
-            env.W.analyzer.network(t, detailed=1, network_font_size=0, figsize=(3,3))
-        
-        plt.figure(figsize=(4,3))
+            env.W.analyzer.network(t, detailed=1, network_font_size=0, figsize=(9,9))
+        call(["cp", "-r", "./out/", opt.out_path])
+        call(["mv", opt.out_path+"out/", opt.out_path+f"{i_episode}"])
+        plt.figure(figsize=(8,6))
         plt.plot(log_epi_average_delay, "r.")
         plt.xlabel("episode")
         plt.ylabel("average delay (s)")
         plt.grid()
-        plt.show()
+        if opt.save_fig:
+            plt.savefig(opt.out_path+'avg_delay.png')
+        else:
+            plt.show()
+
+print(f"BEST EPISODE: {best_i_episode}, with average delay {best_average_delay}")
+best_W.save_mode = 0
+best_W.analyzer.print_simple_stats(force_print=True)
+best_W.analyzer.macroscopic_fundamental_diagram()
+best_W.analyzer.time_space_diagram_traj_links([["W1I1", "I1I2", "I2I3", "I3E1"], ["N1I1", "I1I4", "I4I7", "I7S1"]], figsize=(12,3))
+for t in list(range(0,best_W.TMAX,int(env.W.TMAX/4))):
+    best_W.analyzer.network(t, detailed=1, network_font_size=0, figsize=(9,9))
+best_W.save_mode = 1
+print("start anim")
+best_W.analyzer.network_anim(detailed=1, network_font_size=0, figsize=(9,9))
+print("end anim")
+call(["mv", "./out/", opt.out_path+f"{best_i_episode}-best"])
