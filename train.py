@@ -43,6 +43,7 @@ parser.add_argument('--device', type=str, default=None, help='Force training to 
 parser.add_argument('--num_episodes', type=int, default=200, help='Number of episodes to train for')
 parser.add_argument('--mem_size', type=int, default=10000, help='Replay memory capacity')
 parser.add_argument('--save_fig', action='store_true', help='Save visualizations to files instead of showing them')
+parser.add_argument('--best_ep_criteria', type=str, default='avg_delay', help='Choose the criteria to judge what episode is the best, \'avg_delay\' for using average delay and \'trip_ratio\' for the ratio of completed vs. taken trips')
 opt = parser.parse_args()
 print(opt)
 
@@ -168,8 +169,8 @@ memory = ReplayMemory(opt.mem_size)
 steps_done = 0
 
 log_states = []
-log_epi_average_delay = []
-best_average_delay = 9999999999999999999999999
+log_epi_criteria = []
+best_criteria = 9999999999999999999999999
 best_W = None
 best_i_episode = -1
 
@@ -209,11 +210,15 @@ for i_episode in range(opt.num_episodes):
         target_net.load_state_dict(target_net_state_dict)
 
         if done:
-            log_epi_average_delay.append(env.W.analyzer.average_delay)
-            print(f"{i_episode}:[{env.W.analyzer.average_delay : .3f}]", end=" ")
-            if env.W.analyzer.average_delay < best_average_delay:
-                print(f"Current best episode with average delay: {env.W.analyzer.average_delay}")
-                best_average_delay = env.W.analyzer.average_delay
+            if opt.best_ep_criteria == 'trip_ratio':
+                criteria = -env.W.analyzer.trip_completed/env.W.analyzer.trip_all
+            else:
+                criteria = env.W.analyzer.average_delay
+            log_epi_criteria.append(criteria)
+            print(f"{i_episode}:[{criteria : .3f}]", end=" ")
+            if criteria < best_criteria:
+                print(f"Current best episode!")
+                best_criteria = criteria
                 best_W = copy.deepcopy(env.W)
                 best_i_episode = i_episode
                 # Save current policy net state, one with epoch number in name and one without
@@ -237,16 +242,22 @@ for i_episode in range(opt.num_episodes):
         call(["cp", "-r", "./out/", opt.out_path])
         call(["mv", opt.out_path+"out/", opt.out_path+f"{i_episode}"])
         plt.figure(figsize=(8,6))
-        plt.plot(log_epi_average_delay, "r.")
+        plt.plot(log_epi_criteria, "r.")
         plt.xlabel("episode")
-        plt.ylabel("average delay (s)")
+        if opt.best_ep_criteria == 'trip_ratio':
+            plt.ylabel("ratio of trips completed over trips taken")
+        else:
+            plt.ylabel("average delay (s)")
         plt.grid()
         if opt.save_fig:
-            plt.savefig(opt.out_path+'avg_delay.png')
+            plt.savefig(opt.out_path+'train_stats.png')
         else:
             plt.show()
 
-print(f"BEST EPISODE: {best_i_episode}, with average delay {best_average_delay}")
+if opt.best_ep_criteria == 'trip_ratio':
+    print(f"BEST EPISODE: {best_i_episode}, with {best_criteria:.0%} of trips completed")
+else:
+    print(f"BEST EPISODE: {best_i_episode}, with average delay {best_criteria}")
 best_W.save_mode = 0
 best_W.analyzer.print_simple_stats(force_print=True)
 best_W.analyzer.macroscopic_fundamental_diagram()
