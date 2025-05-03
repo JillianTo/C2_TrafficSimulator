@@ -1,3 +1,7 @@
+##
+## Copied from https://toruseo.jp/UXsim/docs/notebooks/demo_notebook_08en_chicago.html
+## 
+
 import numpy as np
 import pandas as pd
 from tqdm.notebook import tqdm
